@@ -2,8 +2,11 @@
 REM Build a release: the exe plus its SHA-256, ready to attach to a GitHub
 REM release. Everything lands in release\ .
 setlocal enabledelayedexpansion
+REM Work from the script's own folder, so it doesn't matter where it's launched
+REM from (PowerShell in particular doesn't put the script's folder on the path).
+cd /d "%~dp0"
 
-call build.bat
+call "%~dp0build.bat"
 if errorlevel 1 exit /b 1
 
 if not exist release mkdir release
