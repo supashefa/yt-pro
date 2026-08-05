@@ -1,0 +1,110 @@
+"""Subprocess plumbing — one place that knows how to run a console tool without
+flashing a black window, stream its output to the log, and be cancelled."""
+
+import os
+import re
+import subprocess
+
+# Popen flag that suppresses the console window. Windows-only; zero elsewhere so
+# the module still imports if someone runs this on another OS.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+
+
+def quote(cmd):
+    return " ".join(f'"{c}"' if " " in str(c) else str(c) for c in cmd)
+
+
+class Cancelled(Exception):
+    """Raised so a job stops without being reported as a failure."""
+
+
+class Runner:
+    """Runs one command at a time and remembers it, so cancel() can kill it.
+
+    A single Runner is owned by the job queue worker, which means "Cancel"
+    always targets whatever is actually running right now.
+    """
+
+    def __init__(self, log):
+        self._log = log
+        self._proc = None
+        self.cancelled = False
+
+    # ── Streaming run — used for anything with progress output ────────────────
+
+    def run(self, cmd, on_line=None):
+        """Run cmd, streaming stdout+stderr line by line. Returns the exit code
+        (-1 if the executable could not be started)."""
+        if self.cancelled:
+            raise Cancelled()
+        self._log("▶  " + quote(cmd) + "\n")
+        try:
+            self._proc = subprocess.Popen(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding="utf-8", errors="replace",
+                creationflags=NO_WINDOW)
+        except (FileNotFoundError, OSError) as e:
+            self._log(f"Could not start process: {e}")
+            return -1
+        try:
+            for line in self._proc.stdout:
+                line = line.rstrip()
+                self._log(line)
+                if on_line:
+                    try:
+                        on_line(line)
+                    except Exception:
+                        pass  # a bad progress parser must never kill the job
+            self._proc.wait()
+            return self._proc.returncode
+        finally:
+            proc, self._proc = self._proc, None
+            if self.cancelled and proc and proc.poll() is None:
+                proc.terminate()
+
+    # ── Quiet run — used for probes and version checks ───────────────────────
+
+    def probe(self, cmd, timeout=120):
+        """Run cmd and capture everything. Never raises; returns a
+        CompletedProcess-ish object with .returncode/.stdout/.stderr."""
+        try:
+            return subprocess.run(
+                cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="replace",
+                creationflags=NO_WINDOW, timeout=timeout)
+        except Exception as e:
+            self._log(f"probe failed: {e}")
+            return subprocess.CompletedProcess(cmd, -1, "", str(e))
+
+    def cancel(self):
+        self.cancelled = True
+        proc = self._proc
+        if proc and proc.poll() is None:
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+
+    def reset(self):
+        self.cancelled = False
+
+
+# ── Media probing ─────────────────────────────────────────────────────────────
+
+_DUR_RE = re.compile(r"Duration:\s*(\d+):(\d+):(\d+\.?\d*)")
+
+
+def duration(runner, ffmpeg, path):
+    """Length of a media file in seconds, or None. Uses ffmpeg itself so we
+    don't have to ship ffprobe as a fourth binary."""
+    r = runner.probe([ffmpeg, "-i", path], timeout=60)
+    m = _DUR_RE.search((r.stderr or "") + (r.stdout or ""))
+    if m:
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+    return None
+
+
+def hhmmss(seconds):
+    return (f"{int(seconds // 3600):02d}:"
+            f"{int((seconds % 3600) // 60):02d}:"
+            f"{seconds % 60:06.3f}")

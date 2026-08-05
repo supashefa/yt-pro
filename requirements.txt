@@ -1,0 +1,8 @@
+# Runtime — the GUI toolkit is the only real dependency. yt-dlp, ffmpeg and
+# spotdl are shipped as standalone executables the app downloads and updates
+# itself, deliberately: that's what lets the app fix its own extraction
+# breakage without a new release.
+customtkinter>=5.2.2
+
+# Build only — not needed to run from source.
+# pyinstaller>=6.10

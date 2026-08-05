@@ -1,0 +1,66 @@
+# ── Secrets — first, because this repo's predecessor committed an API key ─────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+cookies.txt
+cookies*.txt
+credentials.json
+client_secret*.json
+
+# ── Bundled tools: never commit binaries, they're downloaded at runtime ────────
+yt-dlp.exe
+ffmpeg.exe
+ffprobe.exe
+ffplay.exe
+spotdl.exe
+bin/
+ffmpeg-*/
+*.exe
+
+# ── Build output ──────────────────────────────────────────────────────────────
+build/
+dist/
+*.spec.bak
+*.manifest
+pyarmor*.log
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ── Media and scratch files — big, and never source ───────────────────────────
+*.mp4
+*.mkv
+*.webm
+*.avi
+*.mov
+*.flv
+*.wmv
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.opus
+*.ogg
+chunk_*.mp3
+
+# ── Editor / OS ───────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ── Local session notes, not for the public repo ──────────────────────────────
+PROJECT_STATE.md
+session_log.md
+.claude/settings.local.json
