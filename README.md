@@ -38,12 +38,24 @@ bored of, stop the lot, open the output folder when it's done.
 
 ## Install
 
-Download `YT-Pro.exe` from Releases and run it. On first launch it fetches
-yt-dlp and ffmpeg into `%APPDATA%\YT-Pro` (about 160 MB, once). spotdl is only
-fetched if and when you use the Music tab.
+Download `YT-Pro.exe` from the [latest release](../../releases/latest) and run
+it. No installer, nothing to set up.
 
-If you already have any of those three — via winget, choco, scoop or a manual
-install — YT-Pro finds and reuses them instead of downloading its own.
+Two things to expect the first time:
+
+- **Windows will warn you** that the publisher is unknown, because the exe isn't
+  code-signed. Click **More info → Run anyway**. Normal for unsigned software —
+  see [SECURITY.md](SECURITY.md), which also lists the SHA-256 to check the
+  download against and every network call the app makes.
+- **First launch downloads about 160 MB** — yt-dlp and ffmpeg, into
+  `%APPDATA%\YT-Pro`. Once only. spotdl (another 46 MB) is fetched only if you
+  use the Music tab, so if you never touch music you never pay for it.
+
+Already have any of those three, via winget, choco, scoop or a manual install?
+YT-Pro finds and reuses them instead of downloading its own copy.
+
+After that it keeps itself current: `yt-dlp -U` once a day in the background, and
+it'll offer to update itself when there's a new release.
 
 ## Run from source
 
@@ -101,6 +113,16 @@ stream — so a 720p request silently produced 360p.
 **Worker threads never touch Tk.** Jobs mutate plain Python state and the UI
 polls it on a single timer. Calling Tkinter from a worker can block that worker
 inside Tcl, which presents as the queue quietly dying after one job.
+
+## Feedback and contributions
+
+Bug reports and ideas are welcome — **Issues** for problems, **Discussions** for
+questions and suggestions. If something stopped working, the log (View log →
+Copy all) is the single most useful thing to include.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers how to report well, how to check
+whether a problem is actually upstream in yt-dlp, and the handful of changes
+that won't be accepted — each of which is a bug that already happened here.
 
 ## Credit
 

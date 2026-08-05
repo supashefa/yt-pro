@@ -63,7 +63,9 @@ desktop.ini
 # ── Release output ────────────────────────────────────────────────────────────
 release/
 
-# ── Local session notes ───────────────────────────────────────────────────────
+# ── Internal, not for the public repo ─────────────────────────────────────────
+CLAUDE.md
 PROJECT_STATE.md
 session_log.md
+_archive/
 .claude/settings.local.json
