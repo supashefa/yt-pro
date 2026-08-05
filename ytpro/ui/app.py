@@ -169,7 +169,7 @@ class App(ctk.CTk):
 
     # ── App self-update ───────────────────────────────────────────────────────
 
-    def offer_app_update(self, tag, url):
+    def offer_app_update(self, tag, url, sha256=""):
         if not getattr(sys, "frozen", False):
             self.log(f"YT-Pro {tag} is out — you're running from source, "
                      f"so pull instead of self-updating.")
@@ -185,7 +185,7 @@ class App(ctk.CTk):
 
         def work():
             try:
-                tools.apply_app_update(url)
+                tools.apply_app_update(url, expected_sha256=sha256)
                 self._update_ready = True
             except Exception as e:
                 self._update_error = str(e)

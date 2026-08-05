@@ -60,7 +60,10 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
-# ── Local session notes, not for the public repo ──────────────────────────────
+# ── Release output ────────────────────────────────────────────────────────────
+release/
+
+# ── Local session notes ───────────────────────────────────────────────────────
 PROJECT_STATE.md
 session_log.md
 .claude/settings.local.json

@@ -20,7 +20,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-from . import GITHUB_REPO, __version__
+from . import GITHUB_REPO, UPDATE_URL, __version__
 from .config import TOOLS_DIR, app_dir, save_config
 
 UPDATE_INTERVAL = 86_400          # once per day
@@ -242,18 +242,37 @@ def _newer(remote, local):
         return False
 
 
-def check_app_update(log):
-    """Look for a newer YT-Pro release. Returns (tag, download_url) or None.
+def _fetch_json(url, timeout=20):
+    req = urllib.request.Request(url, headers=_UA)
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.load(resp)
 
-    Stays completely silent on failure — a private or not-yet-created repo
-    returns 404, and that must not look like an error to the user.
+
+def check_app_update(log):
+    """Look for a newer YT-Pro. Returns (version, download_url, sha256) or None.
+
+    Tries the static JSON endpoint first, then a public GitHub release. Stays
+    completely silent on every failure: an unset endpoint, a private repo, no
+    network and a malformed file must all look like "nothing new", never like an
+    error the user has to deal with.
     """
+    if UPDATE_URL:
+        try:
+            data = _fetch_json(UPDATE_URL)
+            version = str(data.get("version", ""))
+            url = data.get("url", "")
+            if version and url and _newer(version, __version__):
+                log(f"A newer YT-Pro is available: {version}")
+                return version, url, str(data.get("sha256", "") or "")
+        except Exception:
+            pass
+        return None
+
+    if not GITHUB_REPO:
+        return None
     try:
-        req = urllib.request.Request(
-            f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
-            headers=_UA)
-        with urllib.request.urlopen(req, timeout=20) as resp:
-            data = json.load(resp)
+        data = _fetch_json(
+            f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest")
     except Exception:
         return None
     tag = str(data.get("tag_name", ""))
@@ -262,11 +281,23 @@ def check_app_update(log):
     for asset in data.get("assets", []):
         if asset.get("name", "").lower().endswith(".exe"):
             log(f"A newer YT-Pro is available: {tag}")
-            return tag, asset["browser_download_url"]
+            return tag, asset["browser_download_url"], ""
     return None
 
 
-def apply_app_update(url, on_progress=None):
+def sha256_of(path, chunk=1_048_576):
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        while True:
+            block = fh.read(chunk)
+            if not block:
+                break
+            h.update(block)
+    return h.hexdigest()
+
+
+def apply_app_update(url, on_progress=None, expected_sha256=""):
     """Download the new exe next to the running one and hand off to a tiny
     batch script that waits for us to exit, swaps the files and relaunches.
 
@@ -282,6 +313,19 @@ def apply_app_update(url, on_progress=None):
     exe = Path(sys.executable)
     new = exe.with_name(exe.stem + ".new.exe")
     _download(url, new, on_progress)
+
+    # Verify before we let anything replace the running app. Without this, a
+    # hijacked or corrupted download would be installed and relaunched.
+    if expected_sha256:
+        got = sha256_of(new)
+        if got.lower() != expected_sha256.strip().lower():
+            try:
+                new.unlink()
+            except OSError:
+                pass
+            raise RuntimeError(
+                "The downloaded update did not match its published checksum, so "
+                "it was discarded. Nothing was changed.")
 
     script = TOOLS_DIR / "ytpro-update.bat"
     script.write_text(

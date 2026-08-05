@@ -6,7 +6,7 @@ import threading
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 
-from .. import __version__, tools
+from .. import GITHUB_REPO, UPDATE_URL, __version__, tools
 from ..config import TOOLS_DIR, save_config
 from .theme import CARD, MUTED, SUBTLE_BTN, bold, small
 
@@ -166,11 +166,23 @@ class SettingsTab:
     def _check_app(self):
         def work():
             found = tools.check_app_update(self.app.log)
-            if found:
-                self.app.after(0, lambda: self.app.offer_app_update(*found))
-            else:
-                self.app.after(0, lambda: messagebox.showinfo(
-                    "Up to date",
-                    f"You're on YT-Pro {__version__}, which is the newest "
-                    f"version available."))
+            self._found_update = found
+            self.app.after(0, self._report_app_check)
+
+        self._found_update = None
         threading.Thread(target=work, daemon=True).start()
+
+    def _report_app_check(self):
+        found, self._found_update = self._found_update, None
+        if found:
+            self.app.offer_app_update(*found)
+        elif not (UPDATE_URL or GITHUB_REPO):
+            messagebox.showinfo(
+                "Not configured",
+                "No update source is set for this build, so there is nothing to "
+                "check. UPDATE_URL in ytpro/__init__.py controls this.")
+        else:
+            messagebox.showinfo(
+                "Up to date",
+                f"You're on YT-Pro {__version__}, which is the newest version "
+                f"available.")
