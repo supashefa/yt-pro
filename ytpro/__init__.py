@@ -1,6 +1,6 @@
 """YT-Pro — a Windows media toolkit built on yt-dlp, spotdl and ffmpeg."""
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 # ── Where the app looks for its own updates ───────────────────────────────────
 #

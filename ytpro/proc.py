@@ -10,6 +10,23 @@ import subprocess
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
 
 
+def child_env():
+    """Environment for every tool we launch, asking for UTF-8 output.
+
+    We read their output as UTF-8, but a child writing to a pipe encodes with
+    the system code page — cp1252 on most Windows installs — so a Hebrew name
+    can raise UnicodeEncodeError inside the tool itself.
+
+    Worth knowing what this does and doesn't buy: the PyInstaller builds we
+    download ignore both of these (measured — spotdl.exe crashed identically
+    with and without them), so the real defence for spotdl is --simple-tui in
+    music.build_command. These still help anyone pointing the app at a
+    pip-installed spotdl or yt-dlp, where they work as advertised, and they
+    cost nothing.
+    """
+    return {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+
+
 def quote(cmd):
     return " ".join(f'"{c}"' if " " in str(c) else str(c) for c in cmd)
 
@@ -30,6 +47,11 @@ class Runner:
         self._proc = None
         self.cancelled = False
 
+    def log(self, message):
+        """Write a line to the same log the running tool's output goes to, so a
+        job can explain what it's doing between commands."""
+        self._log(message)
+
     # ── Streaming run — used for anything with progress output ────────────────
 
     def run(self, cmd, on_line=None):
@@ -42,7 +64,7 @@ class Runner:
             self._proc = subprocess.Popen(
                 cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, encoding="utf-8", errors="replace",
-                creationflags=NO_WINDOW)
+                env=child_env(), creationflags=NO_WINDOW)
         except (FileNotFoundError, OSError) as e:
             self._log(f"Could not start process: {e}")
             return -1
@@ -71,7 +93,7 @@ class Runner:
             return subprocess.run(
                 cmd, capture_output=True, text=True,
                 encoding="utf-8", errors="replace",
-                creationflags=NO_WINDOW, timeout=timeout)
+                env=child_env(), creationflags=NO_WINDOW, timeout=timeout)
         except Exception as e:
             self._log(f"probe failed: {e}")
             return subprocess.CompletedProcess(cmd, -1, "", str(e))

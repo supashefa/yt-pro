@@ -22,6 +22,12 @@ _EXPLAINER = (
     "You get a properly tagged library."
 )
 
+_LOOSE_HINT = (
+    "Accepts less exact matches. Finds songs whose spelling differs — "
+    "transliterated Hebrew especially — but can return a cover or a live "
+    "version instead of the real track."
+)
+
 
 class MusicTab:
     def __init__(self, parent, app):
@@ -71,6 +77,15 @@ class MusicTab:
         self.layout = ctk.StringVar(value=list(music.LAYOUTS)[0])
         ctk.CTkOptionMenu(r2, variable=self.layout, width=210,
                           values=list(music.LAYOUTS)).pack(side="left")
+
+        r4 = ctk.CTkFrame(c2, fg_color="transparent")
+        r4.pack(fill="x", padx=14, pady=(0, 12))
+        self.loose = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(r4, text="Search harder", variable=self.loose,
+                        font=small(12)).pack(side="left", padx=(64, 10))
+        ctk.CTkLabel(r4, text=_LOOSE_HINT, font=small(10), text_color=MUTED,
+                     wraplength=420, justify="left", anchor="w").pack(
+            side="left", fill="x", expand=True)
 
         c3 = ctk.CTkFrame(p, **CARD)
         c3.pack(fill="x", padx=8, pady=6)
@@ -158,10 +173,11 @@ class MusicTab:
                 self.app.jq.add(music.make_job(
                     queue=self.app.jq,
                     label=f"Music — {_short(item)}",
-                    out_dir=out_dir, spotdl=spotdl,
+                    out_dir=out_dir, spotdl=spotdl, cfg=self.app.cfg,
                     ffmpeg=self.app.cfg.get("ffmpeg", ""), url=item,
                     audio_format=self.fmt.get(), bitrate=self.bitrate.get(),
-                    layout=music.LAYOUTS[self.layout.get()]))
+                    layout=music.LAYOUTS[self.layout.get()],
+                    loose=self.loose.get()))
             self.links.delete("1.0", "end")
 
         self._ensure_spotdl(go)

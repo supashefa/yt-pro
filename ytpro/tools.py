@@ -197,6 +197,34 @@ def mark_updated():
         pass
 
 
+# spotdl now needs Deno to work out YouTube's signature for some videos. When
+# it's absent you don't get a clear message — you get "Some YouTube downloads
+# require Deno" buried in the output and then individual tracks failing with
+# AudioProviderError, which reads like the song being unavailable. Confirmed by
+# hand: a track that failed this way downloaded on the next attempt with Deno
+# present and nothing else changed. spotdl installs it itself, into
+# ~/.spotdl/deno.exe, so all we have to do is notice and ask once.
+DENO = Path.home() / ".spotdl" / "deno.exe"
+
+
+def ensure_deno(cfg, runner, log):
+    """Install Deno if spotdl doesn't have it yet. Safe to call repeatedly —
+    it's one file-exists check once it's there."""
+    if DENO.exists() or shutil.which("deno"):
+        return True
+    path = cfg.get("spotdl") or ""
+    if not path or not os.path.exists(path):
+        return False
+    log("Getting Deno — spotdl needs it for some YouTube downloads…")
+    r = runner.probe([path, "--download-deno"], timeout=300)
+    if DENO.exists():
+        log("Deno: ready")
+        return True
+    log("Deno download failed; some tracks may not download. "
+        + ((r.stdout or "") + (r.stderr or "")).strip()[:200])
+    return False
+
+
 def update_tools(cfg, runner, log, force=False):
     """Self-update yt-dlp and spotdl. Throttled to once a day unless forced.
 
@@ -228,6 +256,10 @@ def update_tools(cfg, runner, log, force=False):
                 log("spotdl: up to date")
             except Exception as e:
                 log(f"spotdl update failed: {e}")
+    try:
+        ensure_deno(cfg, runner, log)
+    except Exception as e:
+        log(f"Deno check failed: {e}")
     mark_updated()
 
 
