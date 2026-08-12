@@ -24,7 +24,14 @@ def child_env():
     pip-installed spotdl or yt-dlp, where they work as advertised, and they
     cost nothing.
     """
-    return {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    from .config import TOOLS_DIR  # here, to keep this module import-light
+
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"}
+    # Our tools folder goes on PATH so yt-dlp finds the Deno we installed for
+    # it. Prepended, not appended: if a JavaScript runtime is going to be
+    # picked, it should be the one we know the version of.
+    env["PATH"] = str(TOOLS_DIR) + os.pathsep + env.get("PATH", "")
+    return env
 
 
 def quote(cmd):
@@ -54,9 +61,16 @@ class Runner:
 
     # ── Streaming run — used for anything with progress output ────────────────
 
-    def run(self, cmd, on_line=None):
+    def run(self, cmd, on_line=None, tidy=None):
         """Run cmd, streaming stdout+stderr line by line. Returns the exit code
-        (-1 if the executable could not be started)."""
+        (-1 if the executable could not be started).
+
+        `tidy`, if given, sees every raw line first and returns what should be
+        logged instead — or None to drop it. Both the log and `on_line` see the
+        tidied version, so a job can rescue readable text out of a tool that
+        spews, without the progress parser and the log window disagreeing about
+        what happened.
+        """
         if self.cancelled:
             raise Cancelled()
         self._log("▶  " + quote(cmd) + "\n")
@@ -71,6 +85,13 @@ class Runner:
         try:
             for line in self._proc.stdout:
                 line = line.rstrip()
+                if tidy is not None:
+                    try:
+                        line = tidy(line)
+                    except Exception:
+                        pass  # a broken tidier must not hide the real output
+                    if line is None:
+                        continue
                 self._log(line)
                 if on_line:
                     try:

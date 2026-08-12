@@ -207,17 +207,36 @@ def mark_updated():
 DENO = Path.home() / ".spotdl" / "deno.exe"
 
 
+def _share_deno(log):
+    """Put a copy where yt-dlp will find it.
+
+    spotdl keeps Deno in ~/.spotdl and passes the path itself, but yt-dlp looks
+    for a JavaScript runtime on PATH — and without one it says so and warns that
+    "some formats may be missing". Missing formats is exactly how the old 360p
+    bug presented, so this is worth not leaving to chance. TOOLS_DIR is already
+    prepended to PATH for every tool we launch (proc.child_env)."""
+    ours = TOOLS_DIR / "deno.exe"
+    if ours.exists() or not DENO.exists():
+        return
+    try:
+        shutil.copy2(DENO, ours)
+    except OSError as e:
+        log(f"Could not put Deno where yt-dlp looks: {e}")
+
+
 def ensure_deno(cfg, runner, log):
     """Install Deno if spotdl doesn't have it yet. Safe to call repeatedly —
     it's one file-exists check once it's there."""
     if DENO.exists() or shutil.which("deno"):
+        _share_deno(log)
         return True
     path = cfg.get("spotdl") or ""
     if not path or not os.path.exists(path):
         return False
-    log("Getting Deno — spotdl needs it for some YouTube downloads…")
+    log("Getting Deno — YouTube downloads need it…")
     r = runner.probe([path, "--download-deno"], timeout=300)
     if DENO.exists():
+        _share_deno(log)
         log("Deno: ready")
         return True
     log("Deno download failed; some tracks may not download. "

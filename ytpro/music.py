@@ -184,6 +184,83 @@ class ProgressReader:
             self._q.set_detail(self._job, name[:60])
 
 
+# ── Making spotdl's crash noise readable ──────────────────────────────────────
+#
+# --simple-tui stops the encode failure from killing spotdl, but it doesn't stop
+# it happening: printing a Hebrew name still fails, and Python's logging prints
+# a forty-line "--- Logging error ---" block when a handler raises. That block
+# is not noise to be thrown away, though. It ends with the message and the
+# arguments logging *would* have printed:
+#
+#   Message: 'Downloaded "%s": %s'
+#   Arguments: ('נפתלי - Letaken Olam', 'https://…')
+#
+# So the download we can't see reported is right there. Recovering it turns
+# forty lines of traceback into the one line that was meant to be printed, and —
+# this is the part that matters — lets the progress counter see the successes
+# and misses that would otherwise be invisible for every non-Latin title.
+
+_BLOCK_START = "--- Logging error ---"
+_MSG = re.compile(r"^Message:\s*(.+)$")
+_ARGS = re.compile(r"^Arguments:\s*(.+)$")
+_QUOTED = re.compile(r"'((?:[^'\\]|\\.)*)'")
+_ESCAPED = re.compile(r"\\u[0-9a-fA-F]{4}")
+
+
+def _unescape(text):
+    """Turn the \\uXXXX escapes logging leaves behind back into real text."""
+    if not _ESCAPED.search(text):
+        return text
+    try:
+        return text.encode("ascii", "backslashreplace").decode("unicode_escape")
+    except Exception:
+        return text
+
+
+class LogTidy:
+    """Collapses each logging-error block into the single line it was trying to
+    print. Everything outside a block passes through untouched."""
+
+    def __init__(self):
+        self._in_block = False
+        self._message = ""
+
+    def __call__(self, line):
+        if line.startswith(_BLOCK_START):
+            self._in_block = True
+            self._message = ""
+            return None
+        if not self._in_block:
+            return line
+
+        m = _MSG.match(line)
+        if m:
+            self._message = m.group(1).strip()
+            return None
+
+        m = _ARGS.match(line)
+        if m:
+            self._in_block = False
+            return self._rebuild(m.group(1).strip())
+
+        return None  # traceback body — drop it
+
+    def _rebuild(self, args_text):
+        msg = _unescape(self._message.strip("'\""))
+        values = [_unescape(v) for v in _QUOTED.findall(args_text)]
+        # Arguments can hold an exception rather than a string, in which case
+        # the quoted pieces are its message. Formatting only when the count
+        # lines up keeps a surprise from turning into a wrong line.
+        if msg.count("%s") == len(values):
+            try:
+                return msg % tuple(values)
+            except Exception:
+                pass
+        if values:
+            return ": ".join(values) if msg.count("%s") > 1 else values[-1]
+        return None
+
+
 # ── Job factory ───────────────────────────────────────────────────────────────
 
 def make_job(*, queue, label, out_dir, cfg=None, **kw):
@@ -201,7 +278,7 @@ def make_job(*, queue, label, out_dir, cfg=None, **kw):
                 pass  # never block a download over an optional helper
         cmd = build_command(out_dir=out_dir, **kw)
         reader = ProgressReader(queue, job)
-        rc = runner.run(cmd, on_line=reader)
+        rc = runner.run(cmd, on_line=reader, tidy=LogTidy())
         if runner.cancelled:
             return out_dir
 
