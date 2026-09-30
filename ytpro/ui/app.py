@@ -7,8 +7,10 @@ worker can block the worker inside Tcl, which presents as the queue quietly
 dying after one job — so there is exactly one thread allowed to draw.
 """
 
+import os
 import sys
 import threading
+import traceback
 from collections import deque
 
 import customtkinter as ctk
@@ -210,6 +212,28 @@ class App(ctk.CTk):
         self.after(1000, self._poll_update)
 
     # ── Shared helpers used by the tabs ───────────────────────────────────────
+
+    def ensure_dir(self, path):
+        """Create the save folder, or say why not. A folder that can't be made
+        (a stale path to another user's profile, say) used to raise inside the
+        button callback, and a windowed exe has nowhere to print that — so
+        "Add to queue" just did nothing."""
+        try:
+            os.makedirs(path, exist_ok=True)
+            return True
+        except OSError as e:
+            messagebox.showerror(
+                "Can't use that folder",
+                f"YT-Pro can't save to:\n{path}\n\n{e.strerror or e}\n\n"
+                f"Pick another folder with Browse.")
+            return False
+
+    def report_callback_exception(self, exc, val, tb):
+        # Tk's default prints to stderr, which doesn't exist in the windowed
+        # exe — every button bug became a silent no-op. Show it instead.
+        self.log("".join(traceback.format_exception(exc, val, tb)))
+        messagebox.showerror("Something went wrong",
+                             f"{exc.__name__}: {val}\n\nDetails are in View log.")
 
     def pick_dir(self, var):
         d = filedialog.askdirectory(initialdir=var.get() or None)

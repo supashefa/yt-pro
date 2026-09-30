@@ -166,7 +166,8 @@ class MusicTab:
         if not out_dir:
             messagebox.showwarning("No folder", "Choose a folder to save into.")
             return
-        os.makedirs(out_dir, exist_ok=True)
+        if not self.app.ensure_dir(out_dir):
+            return
 
         def go(spotdl):
             for item in items:
