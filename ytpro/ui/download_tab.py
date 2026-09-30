@@ -87,7 +87,7 @@ class DownloadTab:
 
         r4 = ctk.CTkFrame(c2, fg_color="transparent")
         r4.pack(fill="x", padx=14, pady=(0, 12))
-        self.playlist = ctk.BooleanVar(value=True)
+        self.playlist = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(r4, text="Whole playlist / channel if the link is one",
                         variable=self.playlist, font=small(11)).pack(side="left")
         self.redownload = ctk.BooleanVar(value=False)
